@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PUSH</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #fff;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-family: 'Courier New', Courier, monospace;
+      cursor: crosshair;
+      user-select: none;
+    }
+
+    #counter {
+      position: fixed;
+      top: 24px;
+      right: 28px;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: #bbb;
+    }
+
+    #status {
+      position: fixed;
+      bottom: 24px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      color: #ccc;
+    }
+
+    #push-btn {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: #000;
+      border: none;
+      color: #fff;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 18px;
+      letter-spacing: 0.25em;
+      cursor: crosshair;
+      outline: none;
+      transition: transform 80ms ease, background 80ms ease;
+      position: relative;
+      z-index: 10;
+    }
+    #push-btn:active {
+      transform: scale(0.93);
+      background: #222;
+    }
+    #push-btn:disabled {
+      background: #ddd;
+      color: #aaa;
+      cursor: not-allowed;
+    }
+
+    /* Pop image */
+    .pop-img {
+      position: fixed;
+      pointer-events: none;
+      z-index: 999;
+      width: 140px;
+      height: 140px;
+      object-fit: contain;
+      transform: translate(-50%, -50%) scale(0.5);
+      opacity: 0;
+      animation: popIn 80ms ease forwards;
+    }
+    @keyframes popIn {
+      to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+
+    /* Ripple fallback */
+    .ripple {
+      position: fixed;
+      pointer-events: none;
+      z-index: 999;
+      width: 60px;
+      height: 60px;
+      border: 2.5px solid #000;
+      border-radius: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      animation: ripple 500ms ease forwards;
+    }
+    @keyframes ripple {
+      to { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="counter">PUSHED: 0</div>
+  <button id="push-btn" disabled>···</button>
+  <div id="status">LOADING</div>
+
+<script>
+  let pushCount = 0;
+  let pairs = [];
+
+  const counter   = document.getElementById('counter');
+  const pushBtn   = document.getElementById('push-btn');
+  const statusEl  = document.getElementById('status');
+
+  // ── Load manifest ──────────────────────────────────────
+  fetch('manifest.json')
+    .then(r => r.json())
+    .then(data => {
+      pairs = data;
+      pushBtn.disabled = false;
+      pushBtn.textContent = 'PUSH';
+      statusEl.textContent = pairs.length + ' PAIR' + (pairs.length !== 1 ? 'S' : '') + ' LOADED · CLICK ANYWHERE';
+    })
+    .catch(() => {
+      statusEl.textContent = 'COULD NOT LOAD MANIFEST.JSON';
+    });
+
+  // ── Fire ───────────────────────────────────────────────
+  function fire(x, y) {
+    if (pairs.length === 0) return;
+
+    const pair = pairs[Math.floor(Math.random() * pairs.length)];
+
+    // Audio
+    if (pair.audio) {
+      const audio = new Audio(pair.audio);
+      audio.play().catch(() => {});
+    }
+
+    // Image
+    if (pair.image) {
+      const img = document.createElement('img');
+      img.className = 'pop-img';
+      img.src = pair.image;
+      img.style.left = x + 'px';
+      img.style.top  = y + 'px';
+      document.body.appendChild(img);
+      setTimeout(() => img.remove(), 500);
+    } else {
+      const el = document.createElement('div');
+      el.className = 'ripple';
+      el.style.left = x + 'px';
+      el.style.top  = y + 'px';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 500);
+    }
+
+    pushCount++;
+    counter.textContent = 'PUSHED: ' + pushCount;
+  }
+
+  // ── Listeners ──────────────────────────────────────────
+  pushBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!pushBtn.disabled) fire(e.clientX, e.clientY);
+  });
+
+  document.addEventListener('click', e => {
+    if (e.target === pushBtn) return;
+    if (!pushBtn.disabled) fire(e.clientX, e.clientY);
+  });
+</script>
+</body>
+</html>
