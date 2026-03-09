@@ -18,6 +18,24 @@
       font-family: 'Courier New', Courier, monospace;
       cursor: crosshair;
       user-select: none;
+      transition: filter 0.5s ease;
+    }
+
+    @keyframes shake {
+      0%   { transform: translate(0, 0) rotate(0deg); }
+      10%  { transform: translate(-6px, -4px) rotate(-1deg); }
+      20%  { transform: translate(6px, 4px) rotate(1deg); }
+      30%  { transform: translate(-8px, 2px) rotate(-0.5deg); }
+      40%  { transform: translate(8px, -2px) rotate(0.5deg); }
+      50%  { transform: translate(-4px, 6px) rotate(-1deg); }
+      60%  { transform: translate(4px, -6px) rotate(1deg); }
+      70%  { transform: translate(-6px, 4px) rotate(-0.5deg); }
+      80%  { transform: translate(6px, -4px) rotate(0.5deg); }
+      90%  { transform: translate(-2px, 2px) rotate(0deg); }
+      100% { transform: translate(0, 0) rotate(0deg); }
+    }
+    body.shaking {
+      animation: shake 0.2s ease forwards;
     }
 
     #counter {
@@ -27,6 +45,7 @@
       font-size: 11px;
       letter-spacing: 0.15em;
       color: #bbb;
+      z-index: 200;
     }
 
     #status {
@@ -37,6 +56,34 @@
       font-size: 10px;
       letter-spacing: 0.2em;
       color: #ccc;
+      z-index: 200;
+    }
+
+    #fry-btn {
+      position: fixed;
+      top: 20px;
+      left: 24px;
+      background: #fff;
+      border: 1.5px solid #000;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      padding: 6px 12px;
+      cursor: pointer;
+      z-index: 200;
+      transition: background 100ms;
+    }
+    #fry-btn:hover { background: #f0f0f0; }
+    #fry-btn.active { background: #000; color: #fff; }
+
+    #fry-progress {
+      position: fixed;
+      top: 52px;
+      left: 24px;
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      color: #aaa;
+      z-index: 200;
     }
 
     #push-btn {
@@ -55,21 +102,13 @@
       position: relative;
       z-index: 10;
     }
-    #push-btn:active {
-      transform: scale(0.93);
-      background: #222;
-    }
-    #push-btn:disabled {
-      background: #ddd;
-      color: #aaa;
-      cursor: not-allowed;
-    }
+    #push-btn:active { transform: scale(0.93); background: #222; }
+    #push-btn:disabled { background: #ddd; color: #aaa; cursor: not-allowed; }
 
-    /* Pop image */
     .pop-img {
       position: fixed;
       pointer-events: none;
-      z-index: 999;
+      z-index: 900;
       width: 140px;
       height: 140px;
       object-fit: contain;
@@ -81,7 +120,14 @@
       to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
     }
 
-    /* Ripple fallback */
+    .rain-img {
+      position: fixed;
+      pointer-events: none;
+      z-index: 800;
+      object-fit: contain;
+      opacity: 0.9;
+    }
+
     .ripple {
       position: fixed;
       pointer-events: none;
@@ -101,43 +147,163 @@
 <body>
 
   <div id="counter">PUSHED: 0</div>
+  <button id="fry-btn">⚡ DEEP FRY</button>
+  <div id="fry-progress">FRIES IN: 10</div>
   <button id="push-btn" disabled>···</button>
   <div id="status">LOADING</div>
 
 <script>
-  let pushCount = 0;
-  let pairs = [];
+  let pushCount  = 0;
+  let pairs      = [];
+  let fryEnabled = false;
+  let fryLevel   = 0;
+  const FRY_START = 10;
 
-  const counter   = document.getElementById('counter');
-  const pushBtn   = document.getElementById('push-btn');
-  const statusEl  = document.getElementById('status');
+  const counter     = document.getElementById('counter');
+  const pushBtn     = document.getElementById('push-btn');
+  const statusEl    = document.getElementById('status');
+  const fryBtn      = document.getElementById('fry-btn');
+  const fryProgress = document.getElementById('fry-progress');
 
-  // ── Load manifest ──────────────────────────────────────
-  fetch('manifest.json')
+  // ── Load manifest + preload images ────────────────────
+  fetch('manifest.json?v=' + Date.now())
     .then(r => r.json())
     .then(data => {
       pairs = data;
-      pushBtn.disabled = false;
-      pushBtn.textContent = 'PUSH';
-      statusEl.textContent = pairs.length + ' PAIR' + (pairs.length !== 1 ? 'S' : '') + ' LOADED · CLICK ANYWHERE';
+      const images = pairs.filter(p => p.image);
+      if (images.length === 0) { ready(); return; }
+      let loaded = 0;
+      images.forEach(pair => {
+        const img = new Image();
+        img.onload = img.onerror = () => { loaded++; if (loaded === images.length) ready(); };
+        img.src = pair.image;
+      });
     })
-    .catch(() => {
-      statusEl.textContent = 'COULD NOT LOAD MANIFEST.JSON';
-    });
+    .catch(() => { statusEl.textContent = 'COULD NOT LOAD MANIFEST.JSON'; });
 
-  // ── Fire ───────────────────────────────────────────────
+  function ready() {
+    pushBtn.disabled = false;
+    pushBtn.textContent = 'PUSH';
+    statusEl.textContent = pairs.length + ' PAIR' + (pairs.length !== 1 ? 'S' : '') + ' LOADED · CLICK ANYWHERE';
+  }
+
+  // ── Deep fry toggle ───────────────────────────────────
+  fryBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    fryEnabled = !fryEnabled;
+    fryBtn.classList.toggle('active', fryEnabled);
+    if (!fryEnabled) {
+      fryLevel = 0;
+      document.body.style.filter = '';
+    }
+    updateFryUI();
+  });
+
+  function updateFryUI() {
+    if (!fryEnabled) {
+      fryProgress.textContent = 'FRIES IN: ' + Math.max(0, FRY_START - pushCount);
+      return;
+    }
+    const remaining = Math.max(0, FRY_START - pushCount);
+    if (remaining > 0) {
+      fryProgress.textContent = 'FRIES IN: ' + remaining;
+    } else {
+      fryProgress.textContent = 'FRIED: ' + Math.round(fryLevel) + '%';
+    }
+  }
+
+  function applyFry() {
+    if (!fryEnabled || pushCount < FRY_START) return;
+    fryLevel = Math.min(100, fryLevel + 3);
+    const hue      = (fryLevel / 100) * 360;
+    const contrast = 1 + (fryLevel / 100) * 4;
+    const saturate = 1 + (fryLevel / 100) * 8;
+    const bright   = 1 + (fryLevel / 100) * 0.5;
+    document.body.style.filter =
+      `hue-rotate(${hue}deg) contrast(${contrast}) saturate(${saturate}) brightness(${bright})`;
+  }
+
+  // ── Screen shake ──────────────────────────────────────
+  function triggerShake() {
+    document.body.classList.remove('shaking');
+    void document.body.offsetWidth;
+    document.body.classList.add('shaking');
+    setTimeout(() => document.body.classList.remove('shaking'), 200);
+  }
+
+  // ── Meme rain ─────────────────────────────────────────
+  function spawnRain(pair) {
+    if (!pair || !pair.image) return;
+    const count = 100;
+    const vw    = window.innerWidth;
+    const vh    = window.innerHeight;
+
+    for (let i = 0; i < count; i++) {
+      const img = document.createElement('img');
+      img.className = 'rain-img';
+      img.src = pair.image;
+
+      const w = Math.floor(Math.random() * 30) + 20;
+      img.style.width  = w + 'px';
+      img.style.height = w + 'px';
+
+      let posX  = Math.random() * vw;
+      let posY  = -w - Math.random() * 300;
+      let velY  = 4 + Math.random() * 8;
+      let velX  = (Math.random() - 0.5) * 3;
+      let bounceCount = 0;
+      const maxBounces = Math.floor(Math.random() * 3) + 1;
+      const floorY = vh - w;
+      const delay  = Math.random() * 600;
+
+      img.style.left = posX + 'px';
+      img.style.top  = posY + 'px';
+      document.body.appendChild(img);
+
+      function step() {
+        posY += velY;
+        posX += velX;
+
+        if (posY >= floorY) {
+          posY = floorY;
+          velY *= -0.45;
+          velX *= 0.8;
+          bounceCount++;
+          if (bounceCount >= maxBounces || Math.abs(velY) < 0.8) {
+            img.style.transition = 'opacity 0.3s';
+            img.style.opacity = '0';
+            setTimeout(() => img.remove(), 300);
+            return;
+          }
+        }
+        if (posX > vw) posX = 0;
+        if (posX < -w) posX = vw;
+
+        img.style.left = posX + 'px';
+        img.style.top  = posY + 'px';
+        requestAnimationFrame(step);
+      }
+
+      setTimeout(() => requestAnimationFrame(step), delay);
+    }
+  }
+
+  // ── Fire ──────────────────────────────────────────────
   function fire(x, y) {
     if (pairs.length === 0) return;
 
     const pair = pairs[Math.floor(Math.random() * pairs.length)];
 
-    // Audio
+    // 1. Screen shake
+    triggerShake();
+
+    // 2. Audio
     if (pair.audio) {
       const audio = new Audio(pair.audio);
       audio.play().catch(() => {});
     }
 
-    // Image
+    // 3. Cursor pop image
     if (pair.image) {
       const img = document.createElement('img');
       img.className = 'pop-img';
@@ -145,7 +311,7 @@
       img.style.left = x + 'px';
       img.style.top  = y + 'px';
       document.body.appendChild(img);
-      setTimeout(() => img.remove(), 2000);
+      setTimeout(() => img.remove(), 500);
     } else {
       const el = document.createElement('div');
       el.className = 'ripple';
@@ -156,17 +322,25 @@
     }
 
     pushCount++;
+
+    // 4. Meme rain every 5th click
+    if (pushCount % 5 === 0) spawnRain(pair);
+
+    // 5. Deep fry
+    applyFry();
+
     counter.textContent = 'PUSHED: ' + pushCount;
+    updateFryUI();
   }
 
-  // ── Listeners ──────────────────────────────────────────
+  // ── Listeners ─────────────────────────────────────────
   pushBtn.addEventListener('click', e => {
     e.stopPropagation();
     if (!pushBtn.disabled) fire(e.clientX, e.clientY);
   });
 
   document.addEventListener('click', e => {
-    if (e.target === pushBtn) return;
+    if (e.target === pushBtn || e.target === fryBtn) return;
     if (!pushBtn.disabled) fire(e.clientX, e.clientY);
   });
 </script>
