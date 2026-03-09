@@ -8,7 +8,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #fff;
+      background: #111;
       width: 100vw;
       height: 100vh;
       display: flex;
@@ -38,7 +38,6 @@
       animation: shake 0.2s ease forwards;
     }
 
-    /* ── FLASHBANG ── */
     #flashbang {
       position: fixed;
       inset: 0;
@@ -48,11 +47,11 @@
       opacity: 0;
     }
     #flashbang.go {
-      animation: flashbang 1.2s ease-out forwards;
+      animation: flashbang 5s ease-out forwards;
     }
     @keyframes flashbang {
       0%   { opacity: 1; }
-      15%  { opacity: 1; }
+      40%  { opacity: 1; }
       100% { opacity: 0; }
     }
 
@@ -62,7 +61,17 @@
       right: 28px;
       font-size: 11px;
       letter-spacing: 0.15em;
-      color: #bbb;
+      color: #555;
+      z-index: 200;
+    }
+
+    #fry-progress {
+      position: fixed;
+      top: 24px;
+      left: 24px;
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      color: #555;
       z-index: 200;
     }
 
@@ -73,34 +82,7 @@
       text-align: center;
       font-size: 10px;
       letter-spacing: 0.2em;
-      color: #ccc;
-      z-index: 200;
-    }
-
-    #fry-btn {
-      position: fixed;
-      top: 20px;
-      left: 24px;
-      background: #fff;
-      border: 1.5px solid #000;
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 10px;
-      letter-spacing: 0.2em;
-      padding: 6px 12px;
-      cursor: pointer;
-      z-index: 200;
-      transition: background 100ms;
-    }
-    #fry-btn:hover { background: #f0f0f0; }
-    #fry-btn.active { background: #000; color: #fff; }
-
-    #fry-progress {
-      position: fixed;
-      top: 52px;
-      left: 24px;
-      font-size: 9px;
-      letter-spacing: 0.15em;
-      color: #aaa;
+      color: #444;
       z-index: 200;
     }
 
@@ -108,9 +90,9 @@
       width: 160px;
       height: 160px;
       border-radius: 50%;
-      background: #000;
+      background: #fff;
       border: none;
-      color: #fff;
+      color: #111;
       font-family: 'Courier New', Courier, monospace;
       font-size: 18px;
       letter-spacing: 0.25em;
@@ -120,8 +102,8 @@
       position: relative;
       z-index: 10;
     }
-    #push-btn:active { transform: scale(0.93); background: #222; }
-    #push-btn:disabled { background: #ddd; color: #aaa; cursor: not-allowed; }
+    #push-btn:active { transform: scale(0.93); background: #ddd; }
+    #push-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
 
     .pop-img {
       position: fixed;
@@ -152,7 +134,7 @@
       z-index: 999;
       width: 60px;
       height: 60px;
-      border: 2.5px solid #000;
+      border: 2.5px solid #fff;
       border-radius: 50%;
       transform: translate(-50%, -50%) scale(0);
       animation: ripple 500ms ease forwards;
@@ -166,27 +148,24 @@
 
   <div id="flashbang"></div>
   <div id="counter">PUSHED: 0</div>
-  <button id="fry-btn">⚡ DEEP FRY</button>
   <div id="fry-progress">FRIES IN: 10</div>
   <button id="push-btn" disabled>···</button>
   <div id="status">LOADING</div>
 
 <script>
-  let pushCount  = 0;
-  let pairs      = [];
-  let fryEnabled = false;
-  let fryLevel   = 0;
+  let pushCount = 0;
+  let pairs     = [];
+  let fryLevel  = 0;
+
   const FRY_START   = 10;
   const FLASH_EVERY = 25;
 
   const counter     = document.getElementById('counter');
   const pushBtn     = document.getElementById('push-btn');
   const statusEl    = document.getElementById('status');
-  const fryBtn      = document.getElementById('fry-btn');
   const fryProgress = document.getElementById('fry-progress');
   const flashbang   = document.getElementById('flashbang');
 
-  // ── Load manifest + preload images ────────────────────
   fetch('manifest.json?v=' + Date.now())
     .then(r => r.json())
     .then(data => {
@@ -208,36 +187,14 @@
     statusEl.textContent = pairs.length + ' PAIR' + (pairs.length !== 1 ? 'S' : '') + ' LOADED';
   }
 
-  // ── Flashbang ─────────────────────────────────────────
   function triggerFlashbang() {
     flashbang.classList.remove('go');
     void flashbang.offsetWidth;
     flashbang.classList.add('go');
   }
 
-  // ── Deep fry ──────────────────────────────────────────
-  fryBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    fryEnabled = !fryEnabled;
-    fryBtn.classList.toggle('active', fryEnabled);
-    if (!fryEnabled) {
-      fryLevel = 0;
-      document.body.style.filter = '';
-    }
-    updateFryUI();
-  });
-
-  function updateFryUI() {
-    if (!fryEnabled) {
-      fryProgress.textContent = 'FRIES IN: ' + Math.max(0, FRY_START - pushCount);
-      return;
-    }
-    const remaining = Math.max(0, FRY_START - pushCount);
-    fryProgress.textContent = remaining > 0 ? 'FRIES IN: ' + remaining : 'FRIED: ' + Math.round(fryLevel) + '%';
-  }
-
   function applyFry() {
-    if (!fryEnabled || pushCount < FRY_START) return;
+    if (pushCount < FRY_START) return;
     fryLevel = Math.min(100, fryLevel + 3);
     const hue      = (fryLevel / 100) * 360;
     const contrast = 1 + (fryLevel / 100) * 4;
@@ -247,7 +204,13 @@
       `hue-rotate(${hue}deg) contrast(${contrast}) saturate(${saturate}) brightness(${bright})`;
   }
 
-  // ── Screen shake ──────────────────────────────────────
+  function updateFryUI() {
+    const remaining = Math.max(0, FRY_START - pushCount);
+    fryProgress.textContent = remaining > 0
+      ? 'FRIES IN: ' + remaining
+      : 'FRIED: ' + Math.round(fryLevel) + '%';
+  }
+
   function triggerShake() {
     document.body.classList.remove('shaking');
     void document.body.offsetWidth;
@@ -255,7 +218,6 @@
     setTimeout(() => document.body.classList.remove('shaking'), 200);
   }
 
-  // ── Meme rain ─────────────────────────────────────────
   function spawnRain(pair) {
     if (!pair || !pair.image) return;
     const vw = window.innerWidth;
@@ -309,22 +271,18 @@
     }
   }
 
-  // ── Fire ──────────────────────────────────────────────
   function fire(x, y) {
     if (pairs.length === 0) return;
 
     const pair = pairs[Math.floor(Math.random() * pairs.length)];
 
-    // 1. Shake
     triggerShake();
 
-    // 2. Audio
     if (pair.audio) {
       const audio = new Audio(pair.audio);
       audio.play().catch(() => {});
     }
 
-    // 3. Pop image at cursor
     if (pair.image) {
       const img = document.createElement('img');
       img.className = 'pop-img';
@@ -344,20 +302,15 @@
 
     pushCount++;
 
-    // 4. Rain every 5th click
     if (pushCount % 5 === 0) spawnRain(pair);
-
-    // 5. Flashbang every 25th click
     if (pushCount % FLASH_EVERY === 0) triggerFlashbang();
 
-    // 6. Fry
     applyFry();
+    updateFryUI();
 
     counter.textContent = 'PUSHED: ' + pushCount;
-    updateFryUI();
   }
 
-  // ── Button only — nothing else fires ──────────────────
   pushBtn.addEventListener('click', e => {
     if (!pushBtn.disabled) fire(e.clientX, e.clientY);
   });
